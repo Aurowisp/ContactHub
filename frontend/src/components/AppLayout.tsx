@@ -63,7 +63,7 @@ export default function AppLayout() {
             aria-label="Toggle navigation"
           />
           <div className="topbar-title">Address Book Management</div>
-          <div className="version-chip">v1.0.0</div>
+          <div className="version-chip">v1.0.1</div>
         </Header>
         <Content className="content"><Outlet /></Content>
       </Layout>

@@ -1,10 +1,12 @@
-# ContactHub v1.0.0
+# ContactHub v1.0.1
 
 ContactHub is a full-stack address book built for an Extreme Programming course assignment. It manages contacts, persistent favorites, and any number of typed contact methods, and provides lossless Excel import/export with row-level validation feedback.
 
 ## Features
 
 - Complete contact CRUD with search, category/favorite filters, deterministic pagination, and detail views.
+- Search across notes and contact-method labels, plus phone/email presence filters.
+- Clickable dashboard statistics and contact-detail copy/call/email/open shortcuts.
 - Persistent favorites with a dedicated Favorites route.
 - Multiple phone, email, social, address, website, and custom methods per contact.
 - Real `.xlsx` export with one contact per row and dynamically sized method columns.
@@ -109,4 +111,4 @@ Capture the real running application for submission and place images in `docs/sc
 
 ## Development history
 
-The planned XP milestones are CRUD (0.1), favorites (0.2), multiple methods (0.3), Excel interchange (0.4), integrated UI/testing (0.5), and this deployment-ready 1.0.0 package. See [XP.md](docs/XP.md) for stories and acceptance criteria.
+The planned XP milestones are CRUD (0.1), favorites (0.2), multiple methods (0.3), Excel interchange (0.4), integrated UI/testing (0.5), deployment-ready 1.0.0, and the focused contact enhancements in 1.0.1. See [XP.md](docs/XP.md) for stories and acceptance criteria.

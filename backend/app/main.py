@@ -16,7 +16,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="ContactHub API",
-    version="1.0.0",
+    version="1.0.1",
     description="Contact management and Excel interchange API",
     lifespan=lifespan,
 )
@@ -27,7 +27,7 @@ app.include_router(stats.router, prefix="/api/v1")
 
 @app.get("/health", tags=["system"])
 def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {"status": "ok", "version": "1.0.1"}
 
 
 @app.exception_handler(SQLAlchemyError)

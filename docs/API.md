@@ -6,7 +6,7 @@ Base path: `/api/v1`. JSON errors use `{ "detail": "message" }`; request validat
 
 ### `GET /contacts`
 
-Query parameters: `keyword` (searches name, company, title, and method values), `favorite` (boolean), `category`, `skip` (default 0), and `limit` (1–100, default 20). Returns `{ items, total, skip, limit }`, ordered by name then ID.
+Query parameters: `keyword` (searches name, company, title, notes, method labels, and method values), `favorite` (boolean), `category`, `has_phone` (boolean), `has_email` (boolean), `skip` (default 0), and `limit` (1–100, default 20). Presence filters support both `true` and `false` and can be combined with the other filters. Returns `{ items, total, skip, limit }`, ordered by name then ID.
 
 ### `GET /contacts/{id}`
 
