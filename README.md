@@ -110,4 +110,3 @@ Capture the real running application for submission and place images in `docs/sc
 ## Development history
 
 The planned XP milestones are CRUD (0.1), favorites (0.2), multiple methods (0.3), Excel interchange (0.4), integrated UI/testing (0.5), and this deployment-ready 1.0.0 package. See [XP.md](docs/XP.md) for stories and acceptance criteria.
-
