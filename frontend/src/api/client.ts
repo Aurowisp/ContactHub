@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+export function resolveApiBaseUrl(configuredOrigin?: string): string {
+  const configured = configuredOrigin?.trim().replace(/\/+$/, '');
+  if (!configured) return '/api/v1';
+  return configured.endsWith('/api/v1') ? configured : `${configured}/api/v1`;
+}
+
 const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });

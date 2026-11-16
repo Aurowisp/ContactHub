@@ -95,11 +95,25 @@ docker compose ps
 
 Open `http://localhost` (or the server's public hostname). `contacthub_data` persists SQLite through container recreation. For a public server, point DNS to the host, allow ports 80/443 in the firewall, and terminate TLS with a certificate-aware edge proxy. Public deployment is not claimed by this repository alone.
 
+## Render cloud deployment
+
+The repository includes a Render Blueprint for a Vite static site, a FastAPI web service, and SQLite on a persistent disk.
+
+| Endpoint | Current status |
+| --- | --- |
+| Online demo | Not deployed |
+| Backend API | Not deployed |
+| API documentation | Not deployed |
+
+See [Render deployment guide](docs/DEPLOY_RENDER.md) for exact commands, environment variables, initial setup, persistence verification, and troubleshooting. The [local deployment preparation report](docs/RENDER_DEPLOYMENT_REPORT.md) records actual checks and explicitly separates local readiness from public deployment. Reliable SQLite persistence requires a paid Render web-service plan with a disk; review the current Render price before creating resources. The configuration file alone does not create services or incur charges.
+
 ## API and documentation
 
 - [API reference](docs/API.md)
 - [Excel format](docs/Excel-Format.md)
 - [Development and manual verification](docs/DEVELOPMENT.md)
+- [Render deployment](docs/DEPLOY_RENDER.md)
+- [Render deployment preparation report](docs/RENDER_DEPLOYMENT_REPORT.md)
 - [XP process and user stories](docs/XP.md)
 - [Release notes](RELEASE_NOTES.md)
 - Backend details: [backend/README.md](backend/README.md)
