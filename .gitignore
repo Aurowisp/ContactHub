@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+backend/data/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# Environment and editors
+.env
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
