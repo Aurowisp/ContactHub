@@ -22,7 +22,7 @@ ContactHub is a full-stack address book built for an Extreme Programming course 
 Browser -> React 18 + TypeScript + Ant Design
         -> /api/v1 through Vite proxy or Nginx
         -> FastAPI + Pydantic 2 + SQLAlchemy 2
-        -> SQLite / OpenPyXL
+        -> SQLite locally or PostgreSQL in cloud / OpenPyXL
 ```
 
 The frontend never accesses SQLite directly. All mutations and statistics use the REST API as their source of truth.
@@ -74,6 +74,11 @@ Open `http://localhost:5173`. Vite proxies `/api` to FastAPI at port 8000.
 cd backend
 python -m pytest -q
 
+# Optional: requires a dedicated non-production PostgreSQL project
+$env:POSTGRES_TEST_DATABASE_URL="<test-session-pooler-url>"
+$env:POSTGRES_TEST_CONFIRM_ISOLATED="1"
+python -m pytest -m postgres -v
+
 cd ..\frontend
 npm run typecheck
 npm run build
@@ -97,7 +102,7 @@ Open `http://localhost` (or the server's public hostname). `contacthub_data` per
 
 ## Render cloud deployment
 
-The repository includes a Render Blueprint for a Vite static site, a FastAPI web service, and SQLite on a persistent disk.
+The repository includes a zero-cost deployment design: a Render Static Site, a Render Free FastAPI Web Service, and a Supabase Free PostgreSQL database. Local development and Docker continue to use SQLite.
 
 | Endpoint | Current status |
 | --- | --- |
@@ -105,7 +110,7 @@ The repository includes a Render Blueprint for a Vite static site, a FastAPI web
 | Backend API | Not deployed |
 | API documentation | Not deployed |
 
-See [Render deployment guide](docs/DEPLOY_RENDER.md) for exact commands, environment variables, initial setup, persistence verification, and troubleshooting. The [local deployment preparation report](docs/RENDER_DEPLOYMENT_REPORT.md) records actual checks and explicitly separates local readiness from public deployment. Reliable SQLite persistence requires a paid Render web-service plan with a disk; review the current Render price before creating resources. The configuration file alone does not create services or incur charges.
+See [Render deployment guide](docs/DEPLOY_RENDER.md) for Supabase setup, Session Pooler configuration, environment variables, backups, migration, and public verification. The [deployment preparation report](docs/RENDER_DEPLOYMENT_REPORT.md) separates verified local behavior from tests that require a real PostgreSQL project or public deployment. Free plans have cold starts, quotas, pausing, and backup limitations and are intended for demos rather than production SLA workloads.
 
 ## API and documentation
 
