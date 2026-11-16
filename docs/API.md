@@ -88,5 +88,5 @@ Invalid file structure returns 400 and oversized content returns 413.
 
 ## System
 
-`GET /health` is outside the versioned prefix and returns `{ "status": "ok", "version": "1.0.0" }`.
+`GET /health` is outside the versioned prefix. It verifies database connectivity and returns `{ "status": "ok", "version": "1.0.1" }`; a database failure returns HTTP 503 with `{ "status": "error" }`.
 

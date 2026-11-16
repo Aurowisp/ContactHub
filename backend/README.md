@@ -13,5 +13,7 @@ python -m uvicorn app.main:app --reload
 
 All business endpoints are under `/api/v1`; `/health` and generated `/docs` are also available. Errors use FastAPI's JSON `detail` convention, validation returns 422, missing records return 404, invalid workbooks return 400, oversized uploads return 413, and internal database details are hidden.
 
+For a split frontend/backend deployment, set `ENVIRONMENT=production` and provide `CORS_ORIGINS` as a comma-separated list of exact trusted HTTP(S) origins. Wildcards and non-HTTP origins are rejected. `/health` verifies that a database query succeeds and returns 503 when the database is unavailable. The Render configuration stores SQLite at `/var/data/contacthub.db` on a persistent disk; see [DEPLOY_RENDER.md](../docs/DEPLOY_RENDER.md).
+
 Run the isolated suite with `python -m pytest -q`. Format details are in [Excel-Format.md](../docs/Excel-Format.md), and routes are in [API.md](../docs/API.md).
 
