@@ -1,186 +1,231 @@
-# ContactHub on Render
+# ContactHub: Render Free + Supabase Free
 
-This guide describes how to deploy ContactHub as two Render services:
+This guide deploys ContactHub without a paid Render disk:
 
 ```text
-Browser
-  -> Render Static Site (React/Vite)
-  -> Render Web Service (FastAPI)
-  -> SQLite database on a Render persistent disk
+GitHub branch
+  -> Render Static Site (React/Vite, free)
+  -> Render Web Service (FastAPI, free)
+  -> Supabase PostgreSQL (free)
 ```
 
-The repository is deployment-ready, but it does not claim that a public deployment already exists. Record the actual URLs assigned by Render after deployment; do not substitute guessed URLs.
+Local development and Docker continue to use SQLite. The cloud backend uses PostgreSQL, so Render's ephemeral filesystem never stores the address book.
 
-## Current deployment status
+## Current status
 
 | Item | Status / URL |
 | --- | --- |
-| Frontend | Not deployed; URL pending |
-| Backend API | Not deployed; URL pending |
-| API documentation | Not deployed; URL pending |
+| Local branch | `v1.0.3` |
+| Frontend | Not deployed; actual URL pending |
+| Backend | Not deployed; actual URL pending |
+| API docs | Not deployed; actual URL pending |
+| Supabase project | Not created by this task |
 
-## Important cost and persistence decision
+No public URL is claimed until the services are actually created and tested.
 
-ContactHub uses SQLite. A reliable Render deployment therefore needs a persistent disk mounted on the backend service. Render does not support persistent disks on free web services, so `render.yaml` selects the smallest paid web-service plan currently represented by the Blueprint plan ID `0.5c-512mb` and attaches a 5 GB disk.
+## Why this architecture
 
-Creating or editing `render.yaml` does not create a service or incur a charge. Review the current price in the Render dashboard before creating the Blueprint. If a strictly free demo is required, do not deploy this configuration as-is: an ephemeral SQLite file can be lost on restart or redeploy, and Render's free PostgreSQL offering has its own expiration limits. Migrating to PostgreSQL would require an intentional application and dependency change and is outside this deployment adaptation.
+Render Free web services use an ephemeral filesystem, cannot attach persistent disks, and spin down after 15 minutes without inbound traffic. SQLite on that filesystem would be lost after a restart, redeploy, or spin-down. The Blueprint therefore uses `plan: free`, has no `disk` section, and stores durable data in Supabase PostgreSQL.
+
+For a persistent backend on a network where IPv4 compatibility is needed, Supabase recommends the shared Session Pooler. Copy its host, port, and username from the Dashboard; do not construct them from a project name or region.
 
 Official references:
 
+- [Render Free limitations](https://render.com/docs/free)
 - [Render Blueprint specification](https://render.com/docs/blueprint-spec)
-- [Persistent disks](https://render.com/docs/disks)
-- [Free instance limitations](https://render.com/docs/free)
-- [Monorepo support](https://render.com/docs/monorepo-support)
-- [Static-site rewrites](https://render.com/docs/redirects-rewrites)
+- [Supabase database connection methods](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase connection pooling and limits](https://supabase.com/docs/guides/database/connecting-to-postgres/pooling-and-limits)
+- [Supabase Free project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+- [Supabase database backups](https://supabase.com/docs/guides/platform/backups)
+- [Supabase pricing and current quotas](https://supabase.com/pricing)
+- [Securing the Supabase Data API](https://supabase.com/docs/guides/api/securing-your-api)
 
-## Prerequisites
+## 1. Create the Supabase Free project
 
-- A copy of the repository in a Git provider supported by Render.
-- A Render account with permission to create a paid web service and persistent disk.
-- The current application tests and builds passing locally.
-- A decision on the deployment region. The supplied Blueprint uses `singapore`; change it before initial service creation if another region is required. Render does not allow changing a service's region in place after creation.
+1. Create a new Free project in the [Supabase Dashboard](https://supabase.com/dashboard/). Use demo data only; ContactHub currently has no login or per-user authorization.
+2. Save the generated database password in a password manager. Never place it in frontend variables, documentation, Git, screenshots, or chat logs.
+3. In the project, open **Connect** and choose **Session pooler**.
+4. Copy the entire connection string. On Free projects, Session Pooler port `5432` is IPv4-compatible. Its username is normally shaped like `postgres.<project-ref>`; use the exact Dashboard value.
+5. Replace the password placeholder. Percent-encode reserved password characters such as `@`, `:`, `/`, `?`, `#`, and `%` before placing them in a URL.
+6. Preserve the Dashboard's connection options and require TLS. A typical shape is:
 
-## Environment variables
+   ```text
+   postgresql://postgres.<project-ref>:<encoded-password>@<dashboard-pooler-host>:5432/postgres?sslmode=require
+   ```
 
-### Backend (`contacthub-api`)
+The backend converts the bare scheme to `postgresql+psycopg://` automatically. A URL already using `postgresql+psycopg://` is left unchanged.
 
-| Variable | Required value | Purpose |
-| --- | --- | --- |
-| `PYTHON_VERSION` | `3.11.11` | Pins the Python runtime used by the service. |
-| `ENVIRONMENT` | `production` | Disables development-only default CORS origins. |
-| `DATABASE_URL` | `sqlite:////var/data/contacthub.db` | Stores SQLite on the mounted persistent disk. |
-| `CORS_ORIGINS` | Actual frontend origin, for example `https://<actual-frontend-host>` | Allows the separate frontend to call the API. Use comma-separated origins if needed; do not use `*`. |
+### Data API security
 
-`CORS_ORIGINS` must contain origins only, without paths. A trailing slash is accepted and normalized. Production starts with no allowed cross-origin caller when this variable is empty, which is safer than an open wildcard.
+ContactHub does not use Supabase Auth, JavaScript SDK, REST, or GraphQL. The safest configuration is to disable the Data API in **Project Settings / Integrations / Data API**. If the Data API must remain enabled, after the first backend startup creates the tables, run [harden_supabase_data_api.sql](../backend/scripts/harden_supabase_data_api.sql) in the SQL editor. It enables RLS and revokes table/sequence access from `anon` and `authenticated`; it creates no public policies.
 
-### Frontend (`contacthub-web`)
+The FastAPI server connects directly with database credentials. Never expose the PostgreSQL URL or a `service_role`/secret key to the browser.
 
-| Variable | Required value | Purpose |
-| --- | --- | --- |
-| `NODE_VERSION` | `22.11.0` | Pins the Node.js build runtime. |
-| `VITE_API_BASE_URL` | Actual backend origin, for example `https://<actual-backend-host>` | Builds the browser client with the public API location. |
+## 2. Review the Blueprint
 
-`VITE_API_BASE_URL` can be either the backend origin or the full URL ending in `/api/v1`; the frontend normalizes both forms. Vite variables are embedded at build time, so changing this value requires a new static-site build.
+The root [render.yaml](../render.yaml) defines:
 
-## Recommended deployment with `render.yaml`
+- `contacthub-api`: Python Web Service, `plan: free`, root `backend`, `/health` check;
+- `contacthub-frontend`: Static Site, root `frontend`, `dist` output;
+- no Render database and no persistent disk;
+- SPA rewrite `/* -> /index.html`;
+- `sync: false` for secrets and URLs that must be entered in the Dashboard.
 
-The root-level [render.yaml](../render.yaml) defines both services, their build/start commands, the health check, SPA rewrite, security headers, and the persistent disk. The two public URLs cannot be known until Render creates the services, so two environment values are marked `sync: false`.
+Before creating services, confirm the backend contains `plan: free` and no `disk` block.
 
-1. In the Render dashboard, choose **New > Blueprint** and connect the repository.
-2. Review the proposed resources carefully. Confirm the region, paid backend plan, and 5 GB disk before applying.
-3. When prompted for `VITE_API_BASE_URL` and `CORS_ORIGINS`, temporary placeholder origins may be needed for initial creation. Do not leave placeholders in the completed deployment.
-4. Apply the Blueprint and wait for both services to receive their real Render URLs.
-5. Set frontend `VITE_API_BASE_URL` to the actual backend origin, then redeploy the static site.
-6. Set backend `CORS_ORIGINS` to the actual frontend origin, then redeploy the backend.
-7. Run the verification checklist below and record the real URLs in project documentation.
+## 3. Backend environment variables
 
-Because the two services need each other's generated URL, the final environment-variable update and redeploy are expected on first setup.
-
-## Manual dashboard setup
-
-Use this route if you prefer not to create a Blueprint.
-
-### 1. Create the backend web service
-
-Configure these values:
-
-| Setting | Value |
+| Variable | Value |
 | --- | --- |
-| Service type | Web Service |
-| Runtime | Python |
-| Root directory | `backend` |
-| Build command | `pip install -r requirements.txt` |
-| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Health check path | `/health` |
-| Instance | Paid plan that supports a persistent disk |
-| Disk mount path | `/var/data` |
-| Disk size | 5 GB |
+| `PYTHON_VERSION` | `3.11.11` |
+| `ENVIRONMENT` | `production` |
+| `DATABASE_URL` | Actual Supabase Session Pooler connection string; secret |
+| `CORS_ORIGINS` | Actual Render frontend origin only |
+| `DB_POOL_SIZE` | `3` |
+| `DB_MAX_OVERFLOW` | `2` |
+| `DB_POOL_RECYCLE` | Optional; default `300` seconds |
+| `DB_POOL_TIMEOUT` | Optional; default `30` seconds |
 
-Add the backend environment variables listed above. `CORS_ORIGINS` can be added after the frontend has its real URL. Deploy, then save the backend origin shown in the dashboard.
+Production startup deliberately fails if `DATABASE_URL` is missing or points to SQLite. `CORS_ORIGINS` accepts comma-separated exact HTTP(S) origins and rejects `*`.
 
-### 2. Create the frontend static site
+## 4. Frontend environment variables
 
-Configure these values:
-
-| Setting | Value |
+| Variable | Value |
 | --- | --- |
-| Service type | Static Site |
-| Root directory | `frontend` |
-| Build command | `npm ci && npm run build` |
-| Publish directory | `dist` |
-| Rewrite | `/*` to `/index.html` |
+| `NODE_VERSION` | `22.11.0` |
+| `VITE_API_BASE_URL` | Actual backend origin, such as `https://<actual-backend-host>` |
 
-Set `VITE_API_BASE_URL` to the real backend origin. Deploy and save the frontend origin shown in the dashboard.
+Do not add `/api/v1`; the client adds it. This value is compiled into the static assets, so every change requires a new frontend build.
 
-### 3. Complete CORS configuration
+## 5. Deploy with Render Blueprint
 
-Set backend `CORS_ORIGINS` to the real frontend origin and redeploy the backend. If both a Render domain and a custom domain are used, separate them with commas:
+1. Push the reviewed branch only after explicitly approving Git commit/push operations.
+2. In Render choose **New > Blueprint**, connect the repository, and select the deployment branch.
+3. Enter the real Supabase `DATABASE_URL` when prompted. It is marked `sync: false` and is not stored in the repository.
+4. Because Render has not assigned the two service URLs yet, use temporary valid placeholder origins for `CORS_ORIGINS` and `VITE_API_BASE_URL` during initial creation, for example `https://placeholder.invalid`.
+5. Confirm the backend plan is **Free** and that no disk or Render PostgreSQL resource is proposed.
+6. Apply the Blueprint and record the actual backend and frontend HTTPS origins.
+7. In the frontend environment, replace `VITE_API_BASE_URL` with the real backend origin and trigger a new static-site build.
+8. In the backend environment, replace `CORS_ORIGINS` with the real frontend origin and redeploy the backend.
+9. Run the public verification checklist below.
 
-```text
-https://actual-site.onrender.com,https://contacts.example.com
+For an existing Blueprint, Render ignores newly added `sync: false` values during sync; add or update them manually in each service's Environment page.
+
+## 6. Table initialization
+
+FastAPI calls `Base.metadata.create_all()` at startup. It creates missing `contacts` and `contact_methods` tables and indexes, and repeated startup is safe. It does not modify existing columns and is not a general migration system.
+
+After first startup:
+
+1. Open `/health`; expect HTTP 200.
+2. Confirm both tables exist in Supabase.
+3. Disable the Data API or run the supplied hardening SQL.
+4. Do not add `anon` policies merely to make the backend work; direct SQLAlchemy access does not need Data API grants.
+
+## 7. Optional local SQLite data migration
+
+The repository may contain an ignored local SQLite database. It is never uploaded automatically. Export Excel first as a human-readable backup, then use the migration script only with a new or empty target database.
+
+From `backend` in PowerShell:
+
+```powershell
+$env:MIGRATION_SOURCE_DATABASE_URL="sqlite:///./data/contacthub.db"
+$env:MIGRATION_TARGET_DATABASE_URL="<actual-supabase-session-pooler-url>"
+python scripts/migrate_database.py --confirm-empty-target
+Remove-Item Env:MIGRATION_SOURCE_DATABASE_URL
+Remove-Item Env:MIGRATION_TARGET_DATABASE_URL
 ```
 
-## Verification checklist
+The script:
 
-Do not mark the deployment complete until every relevant check passes against the public services.
+- refuses a non-empty target;
+- preserves contact and method IDs, relationships, favorites, and timestamps;
+- copies inside one target transaction and rolls back on failure;
+- verifies source/target record counts;
+- resets PostgreSQL ID sequences after explicit-ID insertion;
+- never deletes or edits the source database.
 
-1. Open `https://<actual-backend-host>/health`; expect HTTP 200 and `{"status":"ok","version":"1.0.1"}`.
-2. Open `https://<actual-backend-host>/docs`; confirm the OpenAPI page loads.
-3. Open the frontend and refresh each route: `/`, `/contacts`, `/favorites`, and `/import-export`.
-4. In browser developer tools, confirm API requests target the real HTTPS backend, not `localhost`, and there are no CORS or mixed-content errors.
-5. Create a contact with multiple phones, emails, and social accounts; edit it and toggle favorite status.
-6. Verify search, category filtering, favorite filtering, deletion, dashboard statistics, and empty/error states.
-7. Export Excel, import it into a clean test deployment if available, and verify field preservation and row-error reporting.
-8. Restart or redeploy only the backend service and confirm previously created data still exists. This is the critical persistent-disk check.
-9. Confirm HTTPS works for both services and no secrets or database paths are exposed in browser responses.
+To restore exact database records to a new local SQLite file, reverse the URLs and choose a path that does not already contain records:
 
-## Local preparation test result
+```powershell
+$env:MIGRATION_SOURCE_DATABASE_URL="<actual-supabase-session-pooler-url>"
+$env:MIGRATION_TARGET_DATABASE_URL="sqlite:///./data/contacthub-restored.db"
+python scripts/migrate_database.py --confirm-empty-target
+```
 
-Last local verification: 2026-11-16 on Windows, before any cloud deployment.
+Do not commit either database file or any exported personal data.
 
-| Check | Actual result |
-| --- | --- |
-| Backend `python -m pytest -v` | 18 passed |
-| Frontend `npm test` | 5 files, 25 tests passed |
-| Frontend `npm run typecheck` | Passed |
-| Frontend `npm run build` | Passed; one non-blocking large-chunk warning |
-| Clean lockfile install | `npm ci` passed in an isolated temporary directory using the repository lockfile |
-| `render.yaml` parse and invariant checks | Passed |
-| `docker compose config --quiet` | Passed |
-| Public HTTPS, CORS, CRUD, Excel, restart persistence, and mobile access | Not tested because no Render services were created |
+## 8. PostgreSQL integration tests
 
-These results establish local deployment readiness only. They are not evidence of a completed cloud deployment. See [RENDER_DEPLOYMENT_REPORT.md](RENDER_DEPLOYMENT_REPORT.md) for the complete acceptance record.
+Use a separate Supabase project or another dedicated PostgreSQL test database. Never use the production URL.
 
-## Backup and recovery
+```powershell
+cd backend
+$env:POSTGRES_TEST_DATABASE_URL="<dedicated-test-session-pooler-url>"
+$env:POSTGRES_TEST_CONFIRM_ISOLATED="1"
+python -m pytest -m postgres -v
+```
 
-- Use the application's Excel export regularly as a portable address-book backup.
-- Consider Render disk snapshots or another platform backup mechanism appropriate to the account plan.
-- A persistent disk protects data across service restarts and deploys, but it is not a substitute for an independent backup.
-- Before any database migration, export contacts and take a disk-level backup.
+The test creates a randomly named schema, checks table creation, CRUD, favorites, multiple methods, constraints, cascade delete, timestamps, search, category filters, and Excel import/export, then removes only that schema. It refuses to run if the test URL equals `DATABASE_URL`.
+
+Without these variables, the test is reported as skipped rather than falsely passed.
+
+## 9. Public verification checklist
+
+1. Backend `/health` returns HTTP 200 and does not expose a database URL.
+2. Backend `/docs` loads over HTTPS.
+3. Frontend routes `/`, `/contacts`, `/favorites`, and `/import-export` survive direct refresh.
+4. Browser Network shows the real HTTPS backend, never `localhost`, and no CORS/mixed-content errors.
+5. Create, read, edit, delete, search, category-filter, favorite, and unfavorite a demo contact.
+6. Test multiple phones, emails, social accounts, custom labels, and quick actions.
+7. Verify Dashboard totals and card navigation.
+8. Download the Excel template, import valid/invalid rows, export, and compare data.
+9. Let the Render backend spin down or manually redeploy it; confirm Supabase records remain.
+10. Test from another browser/device/network and capture real evidence only.
+
+## 10. Backups and recovery
+
+Supabase Free does not provide automatic database backups. Make regular off-site logical backups and test restores. The current official workflow uses Supabase CLI `db dump` for roles, schema, and data, or PostgreSQL `pg_dump`/`psql`; follow [Supabase's current backup/restore guide](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore) when executing it.
+
+Minimum practice:
+
+- keep periodic application Excel exports for contact-level recovery;
+- keep encrypted logical PostgreSQL dumps outside the repository;
+- never commit dumps, `.env`, database passwords, or real contact records;
+- test restoration into a separate project before relying on a backup;
+- export and back up before running migrations or destructive SQL;
+- use the provided migration script only with an empty destination.
+
+## 11. Free-plan limits and privacy risk
+
+As reviewed on 2026-11-17, Render Free web services spin down after 15 minutes without traffic and can take about a minute to wake. A workspace receives 750 Free instance hours per month; build minutes and bandwidth have separate included limits. The filesystem is ephemeral and the plan provides no production SLA.
+
+Supabase Free currently includes 500 MB database size and 5 GB egress per project, can pause low-activity projects after about seven days, and has no automatic backups. Limits can change; verify the official pricing and documentation before deployment.
+
+ContactHub has no authentication. Anyone who can reach the public FastAPI URL can potentially call CRUD endpoints directly. CORS restricts browser origins but is not authentication. Use fictional demo contacts only; do not expose private address books until real authentication and authorization are designed as a separate feature.
 
 ## Troubleshooting
 
-### Browser reports a CORS error
+### Backend fails immediately in production
 
-Check that `CORS_ORIGINS` exactly matches the frontend's scheme and hostname. Do not include `/contacts` or another path. After changing it, redeploy the backend.
+Check that `DATABASE_URL` is set to PostgreSQL, not SQLite. The failure is intentional protection against ephemeral production storage.
 
-### Requests still target `localhost` or the static-site domain
+### Database connection times out
 
-Set `VITE_API_BASE_URL` to the real backend origin and trigger a new frontend build. This value is compiled into the static assets.
+Copy the Session Pooler URL again from Supabase **Connect**. Confirm port `5432`, the pooler-specific username, an encoded password, and TLS options. Do not guess the host.
 
-### Refreshing a frontend route returns 404
+### Health returns 503 after inactivity
 
-Verify the static-site rewrite is `/*` to `/index.html`. It is already present in `render.yaml`.
+Supabase may be paused or waking, or credentials may be invalid. Review both Render and Supabase logs without posting connection strings.
 
-### Data disappears after a redeploy
+### Browser reports CORS errors
 
-Verify the backend is on a disk-capable paid plan, the disk is mounted at `/var/data`, and `DATABASE_URL` is exactly `sqlite:////var/data/contacthub.db`. Data written elsewhere on the service filesystem is ephemeral.
+Set `CORS_ORIGINS` to the exact frontend scheme and hostname with no path, then redeploy the backend. CORS does not secure direct API access.
 
-### Health check returns 503
+### Frontend still calls the wrong host
 
-The process is running but cannot execute a database query. Inspect backend logs, the disk mount, directory permissions, and `DATABASE_URL`.
+Update `VITE_API_BASE_URL` to the backend origin and rebuild the static site. Do not append `/api/v1`.
 
-### Excel upload fails
+### Frontend route refresh returns 404
 
-Confirm the file is a real `.xlsx`, is no larger than 10 MB, and matches the documented columns in [Excel-Format.md](Excel-Format.md). Review the returned row-level errors before retrying.
-
+Confirm the Blueprint rewrite is `/*` to `/index.html`.

@@ -4,7 +4,7 @@ services:
     runtime: python
     rootDir: backend
     region: singapore
-    plan: 0.5c-512mb
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
@@ -14,16 +14,16 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        value: sqlite:////var/data/contacthub.db
+        sync: false
       - key: CORS_ORIGINS
         sync: false
-    disk:
-      name: contacthub-data
-      mountPath: /var/data
-      sizeGB: 5
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: DB_MAX_OVERFLOW
+        value: "2"
 
   - type: web
-    name: contacthub-web
+    name: contacthub-frontend
     runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
