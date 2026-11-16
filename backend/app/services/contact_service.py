@@ -25,6 +25,8 @@ def list_contacts(
     keyword: str | None = None,
     favorite: bool | None = None,
     category: str | None = None,
+    has_phone: bool | None = None,
+    has_email: bool | None = None,
     skip: int = 0,
     limit: int = 20,
 ) -> tuple[list[Contact], int]:
@@ -33,13 +35,21 @@ def list_contacts(
         filters.append(Contact.is_favorite.is_(favorite))
     if category:
         filters.append(func.lower(Contact.category) == category.strip().lower())
+    if has_phone is not None:
+        phone_filter = Contact.contact_methods.any(ContactMethod.type == "phone")
+        filters.append(phone_filter if has_phone else ~phone_filter)
+    if has_email is not None:
+        email_filter = Contact.contact_methods.any(ContactMethod.type == "email")
+        filters.append(email_filter if has_email else ~email_filter)
     if keyword and keyword.strip():
         pattern = f"%{keyword.strip().lower()}%"
         filters.append(or_(
             func.lower(Contact.name).like(pattern),
             func.lower(Contact.company).like(pattern),
             func.lower(Contact.job_title).like(pattern),
+            func.lower(Contact.notes).like(pattern),
             Contact.contact_methods.any(func.lower(ContactMethod.value).like(pattern)),
+            Contact.contact_methods.any(func.lower(ContactMethod.label).like(pattern)),
         ))
     count = db.scalar(select(func.count(Contact.id)).where(*filters)) or 0
     query = (

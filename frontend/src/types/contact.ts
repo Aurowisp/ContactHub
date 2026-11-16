@@ -34,6 +34,8 @@ export interface ContactQuery {
   keyword?: string;
   favorite?: boolean;
   category?: string;
+  has_phone?: boolean;
+  has_email?: boolean;
   skip?: number;
   limit?: number;
 }

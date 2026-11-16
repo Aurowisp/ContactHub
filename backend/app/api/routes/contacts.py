@@ -21,11 +21,22 @@ def list_contacts(
     keyword: str | None = None,
     favorite: bool | None = None,
     category: str | None = None,
+    has_phone: bool | None = None,
+    has_email: bool | None = None,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
-    items, total = contact_service.list_contacts(db, keyword, favorite, category, skip, limit)
+    items, total = contact_service.list_contacts(
+        db,
+        keyword=keyword,
+        favorite=favorite,
+        category=category,
+        has_phone=has_phone,
+        has_email=has_email,
+        skip=skip,
+        limit=limit,
+    )
     return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 

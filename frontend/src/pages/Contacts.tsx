@@ -1,7 +1,7 @@
 import { FilterOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Input, Select, Space, message } from 'antd';
+import { Alert, Button, Card, Input, Select, Space, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { createContact, deleteContact, fetchContacts, updateContact, updateFavorite } from '../api/contacts';
 import { getErrorMessage } from '../api/client';
 import ContactDetail from '../components/ContactDetail';
@@ -9,6 +9,13 @@ import ContactForm from '../components/ContactForm';
 import ContactTable from '../components/ContactTable';
 import PageHeader from '../components/PageHeader';
 import type { Contact, ContactInput } from '../types/contact';
+
+function readOptionalBoolean(params: URLSearchParams, key: string): boolean | undefined {
+  const value = params.get(key);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
 
 export default function Contacts({ favoritesOnly = false }: { favoritesOnly?: boolean }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -28,17 +35,21 @@ export default function Contacts({ favoritesOnly = false }: { favoritesOnly?: bo
   const [favoriteLoading, setFavoriteLoading] = useState<number | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [messageApi, contextHolder] = message.useMessage();
+  const hasPhone = readOptionalBoolean(searchParams, 'has_phone');
+  const hasEmail = readOptionalBoolean(searchParams, 'has_email');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const result = await fetchContacts({ keyword: search || undefined, category, favorite: favoritesOnly ? true : favoriteFilter, skip: (page - 1) * pageSize, limit: pageSize });
+      const result = await fetchContacts({ keyword: search || undefined, category, favorite: favoritesOnly ? true : favoriteFilter, has_phone: hasPhone, has_email: hasEmail, skip: (page - 1) * pageSize, limit: pageSize });
       setContacts(result.items); setTotal(result.total);
     } catch (err) { setError(getErrorMessage(err)); } finally { setLoading(false); }
-  }, [category, favoriteFilter, favoritesOnly, page, pageSize, search]);
+  }, [category, favoriteFilter, favoritesOnly, hasEmail, hasPhone, page, pageSize, search]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setPage(1); }, [hasEmail, hasPhone]);
   useEffect(() => {
     if ((location.state as { create?: boolean } | null)?.create) {
       setEditing(null); setFormOpen(true); navigate(location.pathname, { replace: true, state: null });
@@ -63,14 +74,27 @@ export default function Contacts({ favoritesOnly = false }: { favoritesOnly?: bo
     catch (err) { messageApi.error(getErrorMessage(err)); } finally { setFavoriteLoading(null); }
   }
 
+  function clearMethodFilters() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('has_phone');
+    next.delete('has_email');
+    setSearchParams(next, { replace: true });
+  }
+
   return (
     <div className="page-container">
       {contextHolder}
       <PageHeader eyebrow={favoritesOnly ? 'Bookmarked' : 'Directory'} title={favoritesOnly ? 'Favorite contacts' : 'All contacts'} description={favoritesOnly ? 'The people you want to keep close at hand.' : 'Search, organize, and keep every way to connect in one place.'} actions={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setFormOpen(true); }}>Add contact</Button>} />
       {error && <Alert type="error" showIcon closable message="Could not load contacts" description={error} />}
+      {(hasPhone !== undefined || hasEmail !== undefined) && <div className="active-filters" aria-label="Active contact method filters">
+        <span>Active filters:</span>
+        {hasPhone !== undefined && <Tag color="blue">{hasPhone ? 'With phone' : 'Without phone'}</Tag>}
+        {hasEmail !== undefined && <Tag color="purple">{hasEmail ? 'With email' : 'Without email'}</Tag>}
+        <Button type="link" size="small" onClick={clearMethodFilters}>Clear method filters</Button>
+      </div>}
       <Card className="table-card">
         <div className="filters">
-          <Input.Search prefix={<SearchOutlined />} placeholder="Search names, companies, roles, or contact details" value={keyword} onChange={(e) => setKeyword(e.target.value)} onSearch={(value) => { setPage(1); setSearch(value.trim()); }} allowClear className="search-input" />
+          <Input.Search prefix={<SearchOutlined />} placeholder="Search names, companies, roles, notes, labels, or contact details" value={keyword} onChange={(e) => { setKeyword(e.target.value); if (!e.target.value) { setPage(1); setSearch(''); } }} onSearch={(value) => { setPage(1); setSearch(value.trim()); }} allowClear className="search-input" />
           <Space wrap>
             <Select allowClear placeholder="Category" suffixIcon={<FilterOutlined />} value={category} onChange={(value) => { setCategory(value); setPage(1); }} options={['Work', 'Family', 'Friends', 'Other'].map((value) => ({ value }))} />
             {!favoritesOnly && <Select allowClear placeholder="Favorite status" value={favoriteFilter} onChange={(value) => { setFavoriteFilter(value); setPage(1); }} options={[{ value: true, label: 'Favorites only' }, { value: false, label: 'Not favorites' }]} />}
