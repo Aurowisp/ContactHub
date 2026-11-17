@@ -89,9 +89,10 @@ The Blueprint was parsed locally and assertions confirmed the free plan, absence
 | `render.yaml` | Changes backend to Free, removes disk/SQLite path, adds secret Supabase URL, renames frontend service | Deployment infrastructure only |
 | `.env.example` | Documents development SQLite and pool variables without secrets | Configuration only |
 | `.github/workflows/ci.yml` | Runs on `v1.0.*`, adds frontend tests, Blueprint check, optional PostgreSQL test | CI only |
-| `README.md` | Describes free architecture and optional integration test | Documentation only |
+| `README.md` | Describes free architecture, optional integration test, and documentation links | Documentation only |
 | `backend/README.md` | Documents PostgreSQL, migration, and security | Documentation only |
 | `frontend/README.md` | Clarifies production API origin handling | Documentation only |
+| `docs/CODE_STYLE.md` | Defines backend, frontend, API, test, security, and review conventions | Documentation only |
 | `docs/DEPLOY_RENDER.md` | Complete Supabase/Render setup, migration, backup, limitations, and acceptance guide | Documentation only |
 | `docs/RENDER_DEPLOYMENT_REPORT.md` | This evidence-based report | Documentation only |
 

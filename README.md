@@ -117,6 +117,7 @@ See [Render deployment guide](docs/DEPLOY_RENDER.md) for Supabase setup, Session
 - [API reference](docs/API.md)
 - [Excel format](docs/Excel-Format.md)
 - [Development and manual verification](docs/DEVELOPMENT.md)
+- [Code style guide](docs/CODE_STYLE.md)
 - [Render deployment](docs/DEPLOY_RENDER.md)
 - [Render deployment preparation report](docs/RENDER_DEPLOYMENT_REPORT.md)
 - [XP process and user stories](docs/XP.md)
